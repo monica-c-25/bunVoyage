@@ -1,11 +1,35 @@
 import fetch from "node-fetch";
 import { load } from "cheerio";
+import 'dotenv/config';
 
+// Google Translate helper
+async function translateText(text, target = "en") {
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) throw new Error("Missing GOOGLE_API_KEY in env");
 
-//Fetch a recipe from a URL and parse ingredients & instructions.
+  const url = `https://translation.googleapis.com/language/translate/v2?key=${apiKey}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      q: text,
+      target
+    }),
+  });
+
+  const data = await res.json();
+  if (!data.data || !data.data.translations || !data.data.translations[0]) {
+    throw new Error("Translation API failed: " + JSON.stringify(data));
+  }
+
+  return data.data.translations[0].translatedText;
+}
+
+// Fetch recipe and translate
 export async function getRecipeFromUrl(url) {
   try {
     const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to fetch URL: ${res.status} ${res.statusText}`);
     const html = await res.text();
     const $ = load(html);
 
@@ -33,9 +57,18 @@ export async function getRecipeFromUrl(url) {
       ? recipe.recipeInstructions.map(step => step.text || step)
       : [];
 
-    return { name: recipe.name || "Recipe", ingredients, instructions };
+    // Translate name, ingredients, instructions
+    const translatedName = await translateText(recipe.name || "Recipe");
+    const translatedIngredients = await Promise.all(ingredients.map(i => translateText(i)));
+    const translatedInstructions = await Promise.all(instructions.map(i => translateText(i)));
+
+    return {
+      name: translatedName,
+      ingredients: translatedIngredients,
+      instructions: translatedInstructions,
+    };
+
   } catch (err) {
     throw new Error("Failed to fetch recipe: " + err.message);
   }
 }
-

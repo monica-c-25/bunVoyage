@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { getRecipeFromUrl } from "./recipeService.js";
+import 'dotenv/config'
 
 const app = express();
 app.use(cors());
